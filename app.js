@@ -1,13 +1,12 @@
 // Lost in Translation — browser port of the original Python BadTranslator engine.
 // Runs entirely client-side: it sends text hop-by-hop through random languages
-// using Google's free, key-less translate endpoint, then back to English.
+// using Google's free, key-less translate endpoint, then to a chosen language.
 
 "use strict";
 
 // Curated map of Google Translate language code -> display name.
 // Replaces the Python `translators.get_languages("google")` call, which has no
-// browser equivalent. English ("en") is the fixed start/end and is excluded from
-// the random pool below.
+// browser equivalent. Source and destination are selected independently.
 const LANGUAGES = {
   af: "Afrikaans", sq: "Albanian", am: "Amharic", ar: "Arabic", hy: "Armenian",
   az: "Azerbaijani", eu: "Basque", be: "Belarusian", bn: "Bengali", bs: "Bosnian",
@@ -33,8 +32,7 @@ const LANGUAGES = {
   yo: "Yoruba", zu: "Zulu",
 };
 
-// Pool of foreign language codes (everything except English).
-const FOREIGN_CODES = Object.keys(LANGUAGES).filter((code) => code !== "en");
+const LANGUAGE_CODES = Object.keys(LANGUAGES);
 
 const ENDPOINT = "https://translate.googleapis.com/translate_a/single";
 
@@ -81,38 +79,39 @@ async function translateOnce(text, src, dest) {
   return result;
 }
 
-// Pick a random foreign code, avoiding `exclude` so consecutive hops never land
-// on the same language (which would be a wasted, no-op round-trip).
-function randomForeignCode(exclude) {
-  let code;
-  do {
-    code = FOREIGN_CODES[Math.floor(Math.random() * FOREIGN_CODES.length)];
-  } while (code === exclude && FOREIGN_CODES.length > 1);
-  return code;
+// Avoid the current and final languages so consecutive hops never repeat and
+// the final translation always changes language.
+function randomForeignCode(current, destination) {
+  const pool = LANGUAGE_CODES.filter((code) => code !== current && code !== destination);
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
-// Run text through `rounds` random languages, then back to English.
+// Run text through `rounds` random languages, then to the chosen destination.
 // Mirrors BadTranslator.translate. Returns { output, chain }.
 //
 // `onHop(chain, done, total)` fires after every completed hop — `total` is
-// `rounds + 1` because the trip home to English counts as a hop.
-async function badTranslate(text, rounds, onHop) {
+// `rounds + 1` because the final translation counts as a hop.
+async function badTranslate(text, rounds, onHop, source = "en", destination = "en") {
+  if ((source !== "auto" && !Object.hasOwn(LANGUAGES, source)) ||
+      !Object.hasOwn(LANGUAGES, destination)) {
+    throw new Error("Please choose valid source and target languages.");
+  }
   let currentText = text;
-  let currentLang = "en";
-  const chain = ["English"];
+  let currentLang = source;
+  const chain = [source === "auto" ? "Auto-detect" : LANGUAGES[source]];
   const total = rounds + 1;
 
   for (let i = 0; i < rounds; i++) {
-    const target = randomForeignCode(currentLang);
+    const target = randomForeignCode(currentLang, destination);
     currentText = await translateOnce(currentText, currentLang, target);
     chain.push(LANGUAGES[target]);
     currentLang = target;
     if (onHop) onHop(chain, i + 1, total);
   }
 
-  // Final hop back to English.
-  currentText = await translateOnce(currentText, currentLang, "en");
-  chain.push("English");
+  // The destination is excluded from the random pool, so this is a real hop.
+  currentText = await translateOnce(currentText, currentLang, destination);
+  chain.push(LANGUAGES[destination]);
   if (onHop) onHop(chain, total, total);
 
   return { output: currentText, chain };
@@ -195,6 +194,10 @@ const EXAMPLES = [
 const inputEl = document.getElementById("input");
 const outputEl = document.getElementById("output");
 const roundsEl = document.getElementById("rounds");
+const sourceEl = document.getElementById("source-language");
+const targetEl = document.getElementById("target-language");
+const inputLanguageEl = document.getElementById("input-language");
+const outputLanguageEl = document.getElementById("output-language");
 const buttonEl = document.getElementById("translate");
 const chainEl = document.getElementById("chain");
 const errorEl = document.getElementById("error");
@@ -299,9 +302,9 @@ function playTransit(chip) {
 }
 
 const Relay = {
-  reset() {
+  reset(source = sourceEl.value) {
     pastEl.replaceChildren();
-    nextEl.replaceChildren(makeChip("English", "chip-current"));
+    nextEl.replaceChildren(makeChip(source === "auto" ? "Auto-detect" : LANGUAGES[source], "chip-current"));
   },
 
   push(name) {
@@ -364,6 +367,9 @@ function setProgress(done, total) {
 function setLoading(isLoading) {
   buttonEl.disabled = isLoading;
   shuffleBtn.disabled = isLoading;
+  sourceEl.disabled = isLoading;
+  targetEl.disabled = isLoading;
+  roundsEl.disabled = isLoading;
   progressEl.hidden = !isLoading;
   relayEl.classList.toggle("is-running", isLoading);
 }
@@ -380,6 +386,49 @@ function setOutput(text) {
 
 // --- Actions ---------------------------------------------------------------
 
+const LANGUAGE_KEY = "lit-languages";
+
+function updateLanguageLabels() {
+  inputLanguageEl.textContent = `(${sourceEl.value === "auto" ? "Auto-detect" : LANGUAGES[sourceEl.value]})`;
+  outputLanguageEl.textContent = `(${LANGUAGES[targetEl.value]})`;
+  inputEl.placeholder = sourceEl.value === "auto"
+    ? "Type or paste text in any language…"
+    : `Type or paste text in ${LANGUAGES[sourceEl.value]}…`;
+  inputEl.lang = sourceEl.value === "auto" ? "" : sourceEl.value;
+  outputEl.lang = targetEl.value;
+  try {
+    localStorage.setItem(LANGUAGE_KEY, JSON.stringify({ source: sourceEl.value, target: targetEl.value }));
+  } catch (err) { /* preferences are optional */ }
+}
+
+function initializeLanguages() {
+  sourceEl.add(new Option("Auto-detect / 自动检测", "auto"));
+  for (const [code, name] of Object.entries(LANGUAGES).sort((a, b) => a[1].localeCompare(b[1]))) {
+    const label = code === "zh-CN" ? "Chinese (Simplified) / 简体中文"
+      : code === "zh-TW" ? "Chinese (Traditional) / 繁體中文" : name;
+    sourceEl.add(new Option(label, code));
+    targetEl.add(new Option(label, code));
+  }
+  sourceEl.value = "auto";
+  targetEl.value = "zh-CN";
+  try {
+    const saved = JSON.parse(localStorage.getItem(LANGUAGE_KEY));
+    if (saved && (saved.source === "auto" || Object.hasOwn(LANGUAGES, saved.source))) sourceEl.value = saved.source;
+    if (saved && Object.hasOwn(LANGUAGES, saved.target)) targetEl.value = saved.target;
+  } catch (err) { /* invalid or unavailable storage falls back to defaults */ }
+  updateLanguageLabels();
+}
+
+for (const select of [sourceEl, targetEl]) {
+  select.addEventListener("change", () => {
+    updateLanguageLabels();
+    setOutput("");
+    chainEl.textContent = "";
+    showError("");
+    Relay.reset();
+  });
+}
+
 let lastExample = -1;
 
 shuffleBtn.addEventListener("click", () => {
@@ -390,6 +439,9 @@ shuffleBtn.addEventListener("click", () => {
   lastExample = index;
 
   const example = EXAMPLES[index];
+  sourceEl.value = "en";
+  updateLanguageLabels();
+  Relay.reset();
   inputEl.value = example.text;
   creditEl.textContent = `— ${example.title}, ${example.author}`;
   creditEl.hidden = false;
@@ -413,8 +465,11 @@ copyBtn.addEventListener("click", async () => {
 });
 
 async function onTranslate() {
+  if (buttonEl.disabled) return;
   const text = inputEl.value.trim();
-  const rounds = parseInt(roundsEl.value, 10);
+  const rounds = Number(roundsEl.value);
+  const source = sourceEl.value;
+  const destination = targetEl.value;
 
   showError("");
   if (!text) {
@@ -448,7 +503,7 @@ async function onTranslate() {
   };
 
   try {
-    const { output } = await badTranslate(text, rounds, onHop);
+    const { output } = await badTranslate(text, rounds, onHop, source, destination);
     setOutput(output);
   } catch (err) {
     showError(err.message || "Something went wrong during translation.");
@@ -470,4 +525,5 @@ inputEl.addEventListener("keydown", (event) => {
 // --- Init ------------------------------------------------------------------
 
 applyTheme(document.documentElement.dataset.theme === "dark" ? "dark" : "light");
+initializeLanguages();
 Relay.reset();

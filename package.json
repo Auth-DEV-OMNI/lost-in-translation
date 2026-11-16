@@ -1,0 +1,11 @@
+{
+  "name": "lost-in-translation-language-selectors",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test": "node tests/languages.cjs"
+  },
+  "devDependencies": {
+    "jsdom": "31.0.1"
+  }
+}

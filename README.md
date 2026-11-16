@@ -1,20 +1,38 @@
 # Lost in Translation
 
-> Play telephone with Google Translate — intentionally mangled English guaranteed.
+> Play telephone with Google Translate, with configurable source and target languages.
 
-Lost in Translation takes your English text, runs it through a configurable number of
-random languages via Google Translate, then translates back to English. The
+Lost in Translation takes your text, runs it through a configurable number of
+random languages via Google Translate, then translates to your selected target language. The
 compounding translation errors produce hilariously broken output — the more hops,
 the worse the result.
 
-**▶ Try it: [calvinstahoviak.com/lost-in-translation](https://calvinstahoviak.com/lost-in-translation)**
+This local fork adds independent source and target language selectors to
+[cjstahoviak/lost-in-translation](https://github.com/cjstahoviak/lost-in-translation).
+The upstream demo does **not** include these changes.
+
+## Language selection / 语言选择
+
+- **Source language / 源语言**: choose a language or Auto-detect / 自动检测.
+- **Target language / 目标语言**: choose the final output language independently.
+- Defaults: automatic source detection and Simplified Chinese output.
+- Language choices are remembered locally when browser storage is available.
+- Random intermediate hops avoid the current language and the final target.
+- Rounds means random intermediate translations; the final target adds one request.
+- Loading a random classic sets the source to English and keeps your target.
+- Language and round controls are disabled while translating; repeated keyboard
+  shortcuts cannot start overlapping runs.
+
+Examples: Chinese → random languages → Chinese, or Japanese → random languages → English.
+
+Open `index.html` to use the local version, or serve the folder as described below.
 
 ---
 
 ## How It Works
 
 1. The text is translated through **N** randomly selected languages (default: 10).
-2. The result is translated back to English.
+2. The result is translated to the selected target language.
 
 Each hop compounds the errors of the last, producing increasingly nonsensical
 output. A relay between the two text boxes shows the journey live: the language
@@ -48,13 +66,27 @@ Also in the box:
 It's a static site — just serve the folder with any web server:
 
 ```bash
-git clone https://github.com/cjstahoviak/lost-in-translation.git
-cd lost-in-translation
+# In this modified folder:
 python3 -m http.server 8000
 # then open http://localhost:8000/
 ```
 
 ---
+
+## Tests
+
+With Node.js 22.12+ (or 24+):
+
+```bash
+npm ci
+npm test
+```
+
+Ten checks cover language choices, request chaining, saved settings, examples,
+loading locks, error recovery, and round validation using simulated Google responses.
+These tests do not verify Google endpoint availability. A live smoke test from the
+authoring environment failed to connect to Google; actual translation still requires
+network access to `translate.googleapis.com`.
 
 ## Project Structure
 
@@ -72,10 +104,9 @@ lost-in-translation/
 
 ## Deployment
 
-The site is served via **GitHub Pages** from this repository. Because the custom
-domain `calvinstahoviak.com` is configured on the `calvinstahoviak.github.io`
-user-site repo, this project page is automatically available at
-`calvinstahoviak.com/lost-in-translation`.
+The included workflow can serve your fork via **GitHub Pages**. In your repository's
+Settings → Pages, select GitHub Actions as the source. Your URL will normally be
+`https://YOUR-USERNAME.github.io/lost-in-translation/`.
 
 Pushing to `main` triggers `.github/workflows/pages.yml`, which uploads the repo
 root and deploys it. (One-time setup: in **Settings → Pages**, set the source to

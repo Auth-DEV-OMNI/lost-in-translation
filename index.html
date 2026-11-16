@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Lost in Translation</title>
-  <meta name="description" content="Play telephone with randomized languages — run English through a chain of random languages and back for gloriously broken results." />
+  <meta name="description" content="Run text through random languages with Google Translate. Choose the source, final target language, and number of rounds." />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='88'>🗣️</text></svg>" />
 
   <!-- Stamp the saved theme before first paint so a dark-mode reload never flashes white.
@@ -24,7 +24,7 @@
   <!-- ?v= is a cache buster. GitHub Pages serves these under a fixed filename, so
        browsers and the CDN happily reuse a stale copy after a deploy. Bump the
        number whenever styles.css or app.js changes. -->
-  <link rel="stylesheet" href="./styles.css?v=2" />
+  <link rel="stylesheet" href="./styles.css?v=3" />
 </head>
 <body>
   <main class="app">
@@ -42,12 +42,12 @@
 
     <section class="panel">
       <div class="panel-head">
-        <label class="panel-label" for="input">Input <span class="panel-label-sub">(English)</span></label>
+        <label class="panel-label" for="input">Input <span id="input-language" class="panel-label-sub"></span></label>
         <button id="shuffle" class="btn chip-btn" type="button">
           <span aria-hidden="true">🎲</span> random classic
         </button>
       </div>
-      <textarea id="input" class="textbox" placeholder="Type or paste some English text…" spellcheck="true"></textarea>
+      <textarea id="input" class="textbox" placeholder="Type or paste text in any language…" spellcheck="true" dir="auto"></textarea>
       <p id="example-credit" class="credit" hidden></p>
     </section>
 
@@ -67,15 +67,26 @@
 
     <section class="panel">
       <div class="panel-head">
-        <label class="panel-label" for="output">Output</label>
+        <label class="panel-label" for="output">Output <span id="output-language" class="panel-label-sub"></span></label>
         <button id="copy" class="btn chip-btn" type="button" disabled>
           <span aria-hidden="true">⧉</span> <span id="copy-label">copy</span>
         </button>
       </div>
-      <textarea id="output" class="textbox textbox-output" placeholder="The mangled result shows up here…" readonly></textarea>
+      <textarea id="output" class="textbox textbox-output" placeholder="The mangled result shows up here…" readonly dir="auto"></textarea>
     </section>
 
     <section class="controls">
+      <div class="language-controls">
+        <div class="language-field">
+          <label for="source-language">Source language / 源语言</label>
+          <select id="source-language" aria-describedby="language-help"></select>
+        </div>
+        <div class="language-field">
+          <label for="target-language">Target language / 目标语言</label>
+          <select id="target-language" aria-describedby="language-help"></select>
+        </div>
+      </div>
+      <p id="language-help" class="language-help">Random languages in between; finish in your target language. Rounds + 1 translations in total.</p>
       <div class="rounds">
         <label for="rounds">Rounds</label>
         <input id="rounds" type="number" min="1" max="50" value="10" />
@@ -95,10 +106,10 @@
 
     <footer class="footer">
       <span>Calvin Stahoviak</span>
-      <a href="https://github.com/cjstahoviak/lost-in-translation" target="_blank" rel="noopener noreferrer">Source on GitHub</a>
+      <a href="https://github.com/cjstahoviak/lost-in-translation" target="_blank" rel="noopener noreferrer">Original project on GitHub</a>
     </footer>
   </main>
 
-  <script src="./app.js?v=2"></script>
+  <script src="./app.js?v=3"></script>
 </body>
 </html>
